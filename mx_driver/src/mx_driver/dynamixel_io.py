@@ -162,26 +162,34 @@ class DynamixelIO(object):
     def write(self, servo_id, address, data):
         """ Write the values from the "data" list to the servo with "servo_id"
         starting with data[0] at "address", continuing through data[n-1] at
-        "address" + (n-1), where n = len(data). "address" is an integer between
-        0 and 49. It is recommended to use the constants in module dynamixel_const
-        for readability. "data" is a list/tuple of integers.
+        "address" + (n-1), where n = len(data).
+        "address" has a 2byte representation
+        "data" is a list/tuple of integers.
 
         To set servo with id 1 to position 276, the method should be called
-        like:
-            write(1, DXL_GOAL_POSITION_L, (20, 1))
+        eg:
+            write(1, MX_GOAL_POSITION, (0,0,2, 0))
         """
         # Number of bytes following standard header (0xFF, 0xFF, id, length)
-        length = 3 + len(data)  # instruction, address, len(data), checksum
+        length = 5 + len(data)  # instruction, address l+h, len(data), checksum l+h
 
-        # directly from AX-12 manual:
-        # Check Sum = ~ (ID + LENGTH + INSTRUCTION + PARAM_1 + ... + PARAM_N)
-        # If the calculated value is > 255, the lower byte is the check sum.
-        checksum = 255 - ((servo_id + length + DXL_WRITE_DATA + address + sum(data)) % 256)
+        length_l = length & 0xff
+        length_h = (length>>8) & 0xff
 
-        # packet: FF  FF  ID LENGTH INSTRUCTION PARAM_1 ... CHECKSUM
-        packet = [0xFF, 0xFF, servo_id, length, DXL_WRITE_DATA, address]
+        addr_l = address & 0xff
+        addr_h = (address>>8) & 0xff
+
+        packet = [0xFF, 0xFF, 0xFD, 0x00, servo_id, length_l, length_h, DXL_WRITE_DATA, addr_l, addr_h]
         packet.extend(data)
-        packet.append(checksum)
+        checksum = self.update_crc(0,packet,len(packet))
+        CRC_L = checksum & 0x00FF
+        CRC_H = (checksum >> 8) & 0x00FF
+        packet.append(CRC_L)
+        packet.append(CRC_H)
+
+        #debug
+        #print '[{}]'.format(', '.join(hex(x) for x in packet))
+        #return
 
         packetStr = array('B', packet).tostring() # packetStr = ''.join([chr(byte) for byte in packet])
 
@@ -374,7 +382,7 @@ class DynamixelIO(object):
         """
         response = self.write(old_id, MX_ID, [new_id])
         if response:
-            self.exception_on_error(response[4], old_id, 'setting id to %d' % new_id)
+            self.exception_on_error(response[8], old_id, 'setting id to %d' % new_id)
         return response
 
     def set_baud_rate(self, servo_id, baud_rate):
@@ -383,7 +391,7 @@ class DynamixelIO(object):
         """
         response = self.write(servo_id, MX_BAUD_RATE, [baud_rate])
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting baud rate to %d' % baud_rate)
+            self.exception_on_error(response[8], servo_id, 'setting baud rate to %d' % baud_rate)
         return response
 
     def set_return_delay_time(self, servo_id, delay):
@@ -394,33 +402,36 @@ class DynamixelIO(object):
         """
         response = self.write(servo_id, MX_RETURN_DELAY_TIME, [delay])
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting return delay time to %d' % delay)
+            self.exception_on_error(response[8], servo_id, 'setting return delay time to %d' % delay)
         return response
 
     def set_position_limit_max(self, servo_id, max_angle):
         """
         Set the max angle of rotation limit.
         """
-        #TODO: remove int casting!!
-        loVal = int(max_angle % 256)
-        hiVal = int(max_angle >> 8)
+        b0 = max_angle & 0xff
+        b1 = (max_angle >> 8) & 0xff
+        b2 = (max_angle >> 16) & 0xff
+        b3 = (max_angle >> 24) & 0xff
 
-        response = self.write(servo_id, MX_MAX_POSITION_LIMIT, (loVal, hiVal))
+        response = self.write(servo_id, MX_MAX_POSITION_LIMIT, (b0, b1, b2, b3))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting max position limit to %d' % angle_ccw)
+            self.exception_on_error(response[8], servo_id, 'setting max position limit to %d' % max_angle)
         return response
 
     def set_position_limit_min(self, servo_id, min_angle):
         """
         Set the min angle of rotation limit.
         """
-        #TODO: remove int casting!!
-        loVal = int(min_angle % 256)
-        hiVal = int(min_angle >> 8)
+        b0 = min_angle & 0xff
+        b1 = (min_angle >> 8) & 0xff
+        b2 = (min_angle >> 16) & 0xff
+        b3 = (min_angle >> 24) & 0xff
 
-        response = self.write(servo_id, MX_MIN_POSITION_LIMIT, (loVal, hiVal))
+
+        response = self.write(servo_id, MX_MIN_POSITION_LIMIT, (b0, b1, b2, b3))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting min position limit to %d' % angle_ccw)
+            self.exception_on_error(response[8], servo_id, 'setting min position limit to %d' % angle_ccw)
         return response
 
     def set_drive_mode(self, servo_id, mode):
@@ -429,35 +440,35 @@ class DynamixelIO(object):
         """
         response = self.write(servo_id, MX_DRIVE_MODE, [mode])
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting drive mode to %d' % drive_mode)
+            self.exception_on_error(response[8], servo_id, 'setting drive mode to %d' % drive_mode)
         return response
 
     def set_voltage_limit_min(self, servo_id, min_voltage):
         """
         Set the minimum voltage limit.
-        NOTE: the absolute min is 5v
+        NOTE: the absolute min is 9.5v
         """
 
-        if min_voltage < 5: min_voltage = 5
+        if min_voltage < 9.5: min_voltage = 9.5
         minVal = int(min_voltage * 10)
 
-        response = self.write(servo_id, MX_MIN_VOLTAGE_LIMIT, [minVal])
+        response = self.write(servo_id, MX_MIN_VOLTAGE_LIMIT, (minVal,0))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting minimum voltage level to %d' % min_voltage)
+            self.exception_on_error(response[8], servo_id, 'setting minimum voltage level to %d' % min_voltage)
         return response
 
     def set_voltage_limit_max(self, servo_id, max_voltage):
         """
         Set the maximum voltage limit.
-        NOTE: the absolute max is 25v
+        NOTE: the absolute max is 16v
         """
 
-        if max_voltage > 25: max_voltage = 25
+        if max_voltage > 16: max_voltage = 16
         maxVal = int(max_voltage * 10)
 
-        response = self.write(servo_id, MX_MAX_VOLTAGE_LIMIT, [maxVal])
+        response = self.write(servo_id, MX_MAX_VOLTAGE_LIMIT, (maxVal,0))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting maximum voltage level to %d' % max_voltage)
+            self.exception_on_error(response[8], servo_id, 'setting maximum voltage level to %d' % max_voltage)
         return response
 
     def set_voltage_limits(self, servo_id, min_voltage, max_voltage):
@@ -466,15 +477,15 @@ class DynamixelIO(object):
         NOTE: the absolute min is 5v and the absolute max is 25v
         """
 
-        if min_voltage < 5: min_voltage = 5
-        if max_voltage > 25: max_voltage = 25
+        if min_voltage < 9.5: min_voltage = 9.5
+        if max_voltage > 16: max_voltage = 16
 
         minVal = int(min_voltage * 10)
         maxVal = int(max_voltage * 10)
 
-        response = self.write(servo_id, MX_MIN_VOLTAGE_LIMIT, (minVal, maxVal))
+        response = self.write(servo_id, MX_MAX_VOLTAGE_LIMIT, (maxVal, 0, minVal, 0))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting min and max voltage levels to %d and %d' %(min_voltage, max_voltage))
+            self.exception_on_error(response[8], servo_id, 'setting min and max voltage levels to %d and %d' %(min_voltage, max_voltage))
         return response
 
 
@@ -487,37 +498,97 @@ class DynamixelIO(object):
 
     def set_torque_enabled(self, servo_id, enabled):
         """
-        Sets the value of the torque enabled register to 1 or 0. When the
-        torque is disabled the servo can be moved manually while the motor is
-        still powered.
+        Sets the value of the torque enabled register to 1 or 0.
+        Torque must be enabled to set any values in EEPROM memory area
         """
-        response = self.write(servo_id, MX_TORQUE_ENABLE, [enabled])
+        response = self.write(servo_id, MX_TORQUE_ENABLE, (enabled,))
         if response:
-            self.exception_on_error(response[4], servo_id, '%sabling torque' % 'en' if enabled else 'dis')
+            self.exception_on_error(response[8], servo_id, '%sabling torque' % 'en' if enabled else 'dis')
+        return response
+
+    def set_velocity_i_gain(self, servo_id, i_gain):
+        """
+        Sets the value of integral action of PI velocity controller.
+        Gain value is in range 0 to 2^15 - 1.
+        """
+        b0 = i_gain & 0xff
+        b1 = (i_gain >> 8) & 0xff
+        response = self.write(servo_id, MX_VELOCITY_I_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting I gain value of velocity PI controller to %d' % i_gain)
+        return response
+
+    def set_velocity_p_gain(self, servo_id, p_gain):
+        """
+        Sets the value of proportional action of PI velocity controller.
+        Gain value is in range 0 to 2^15 - 1.
+        """
+        b0 = p_gain & 0xff
+        b1 = (p_gain >> 8) & 0xff
+        response = self.write(servo_id, MX_VELOCITY_P_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting P gain value of velocity PI controller to %d' % p_gain)
         return response
 
     def set_position_d_gain(self, servo_id, d_gain):
         """
         Sets the value of derivative action of PID controller.
-        Gain value is in range 0 to 1024.
+        Gain value is in range 0 to 2^15 - 1.
         """
-        #TODO check if valid range
-        response = self.write(servo_id, MX_POSITION_D_GAIN, [d_gain])
-        self.exception_on_error(response[4], servo_id, 'setting D gain value of PID controller to %d' % d_gain)
+        b0 = d_gain & 0xff
+        b1 = (d_gain >> 8) & 0xff
+        response = self.write(servo_id, MX_POSITION_D_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting D gain value of PID controller to %d' % d_gain)
         return response
 
-    #TODO SET_POSITION_I
+    def set_position_i_gain(self, servo_id, i_gain):
+        """
+        Sets the value of integral action of PID controller.
+        Gain value is in range 0 to 2^15 - 1.
+        """
+        b0 = i_gain & 0xff
+        b1 = (i_gain >> 8) & 0xff
+        response = self.write(servo_id, MX_POSITION_I_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting D gain value of PID controller to %d' % i_gain)
+        return response
 
-    #TODO SET_POSITION_P
+    def set_position_p_gain(self, servo_id, p_gain):
+        """
+        Sets the value of proportional action of PID controller.
+        Gain value is in range 0 to 2^15 - 1.
+        """
+        b0 = p_gain & 0xff
+        b1 = (p_gain >> 8) & 0xff
+        response = self.write(servo_id, MX_POSITION_P_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting D gain value of PID controller to %d' % p_gain)
+        return response
 
-    #TODO SET_VELOCITY_P
+    def set_position_feedfwd1_gain(self, servo_id, gain):
+        """
+        Sets the value of 1st feedforward gain
+        Gain value is in range 0 to 2^15 - 1.
+        """
+        b0 = gain & 0xff
+        b1 = (gain >> 8) & 0xff
+        response = self.write(servo_id, MX_FEEDFORWARD_1_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting D gain value of PID controller to %d' % gain)
+        return response
 
-    #TODO SET_VELOCITY_I
-
-    #TODO SET_FEEDFORWARD 1
-
-    #TODO SET_FEEDFORWARD 2
-
+    def set_position_feedfwd2_gain(self, servo_id, gain):
+        """
+        Sets the value of 2st feedforward gain
+        Gain value is in range 0 to 2^15 - 1.
+        """
+        b0 = gain & 0xff
+        b1 = (gain >> 8) & 0xff
+        response = self.write(servo_id, MX_FEEDFORWARD_2_GAIN, (b0, b1))
+        if response:
+            self.exception_on_error(response[8], servo_id, 'setting D gain value of PID controller to %d' % gain)
+        return response
 
     def set_acceleration_profile(self, servo_id, acceleration):
         """
@@ -525,10 +596,13 @@ class DynamixelIO(object):
         0 - inifinite acceleration
         Range: 0 - val(MX_ACCELERATION_LIMIT)
         """
-
-        response = self.write(servo_id, MX_ACCLERATION_PROFILE, (acceleration, ))
+        b0 = (acceleration) & 0xff
+        b1 = (acceleration >> 8) & 0xff
+        b2 = (acceleration >> 16) & 0xff
+        b3 = (acceleration >> 24) & 0xff
+        response = self.write(servo_id, MX_ACCLERATION_PROFILE, (b0,b1,b2,b3 ))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting acceleration profile to %d' % acceleration)
+            self.exception_on_error(response[8], servo_id, 'setting acceleration profile to %d' % acceleration)
         return response
 
 
@@ -538,13 +612,14 @@ class DynamixelIO(object):
         Valid offset values depend on mode, ie joint mode -> [-1024, 1024]
         while multi-turn -> [-24576 to 24576]
         """
-        #TODO remove int casting
-        loVal = int(offset % 256)
-        hiVal = int(offset >> 8)
+        b0 = (offset) & 0xff
+        b1 = (offset >> 8) & 0xff
+        b2 = (offset >> 16) & 0xff
+        b3 = (offset >> 24) & 0xff
 
-        response = self.write(servo_id, MX_HOMING_OFFSET, (loVal, hiVal))
+        response = self.write(servo_id, MX_HOMING_OFFSET, (b0,b1,b2,b3))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting multiturn offset to %d' % offset)
+            self.exception_on_error(response[8], servo_id, 'setting multiturn offset to %d' % offset)
         return response
 
 
@@ -555,13 +630,14 @@ class DynamixelIO(object):
 
         implemented range: -24576 ~ 24576
         """
-        #TODO get all bytes here
-        loVal = ctypes.c_ubyte(position & 0xff).value
-        hiVal = ctypes.c_ubyte(position >> 8).value
+        b0 = position & 0xff
+        b1 = (position >> 8) & 0xff
+        b2 = (position >> 16) & 0xff
+        b3 = (position >> 24) & 0xff
 
-        response = self.write(servo_id, MX_GOAL_POSITION, (loVal, hiVal, 0, 0))
+        response = self.write(servo_id, MX_GOAL_POSITION, (b0,b1,b2,b3))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting goal position to %d' % position)
+            self.exception_on_error(response[8], servo_id, 'setting goal position to %d' % position)
         return response
 
     def set_speed(self, servo_id, speed):
@@ -569,18 +645,15 @@ class DynamixelIO(object):
         Only used for velocity control mode.
         Valid ranges 0 - val(MX_MAX_VELOCITY_LIMIT)
         """
-        #TODO instruction is now a 4byte command. Fix!
-        # split speed into 2 bytes
-        if speed >= 0:
-            loVal = int(speed % 256)
-            hiVal = int(speed >> 8)
-        else:
-            loVal = int((1023 - speed) % 256)
-            hiVal = int((1023 - speed) >> 8)
+        b0 = speed & 0xff
+        b1 = (speed >> 8) & 0xff
+        b2 = (speed >> 16) & 0xff
+        b3 = (speed >> 24) & 0xff
 
-        response = self.write(servo_id, MX_GOAL_VELOCITY, (loVal, hiVal))
+
+        response = self.write(servo_id, MX_GOAL_VELOCITY, (b0,b1,b2,b3))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting moving speed to %d' % speed)
+            self.exception_on_error(response[8], servo_id, 'setting moving speed to %d' % speed)
         return response
 
     def set_current_limit(self, servo_id, current):
@@ -591,13 +664,12 @@ class DynamixelIO(object):
         unit: about  3.36[mA]
         range: 0 - 1,941
         """
-        #TODO: use ctypes casting here
-        loVal = int(current % 256)
-        hiVal = int(current >> 8)
+        b0 = (current & 0xff)
+        b1 = (current >> 8) & 0xff
 
-        response = self.write(servo_id, MX_CURRENT_LIMIT, (loVal, hiVal))
+        response = self.write(servo_id, MX_CURRENT_LIMIT, (b0, b1))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting torque limit to %d' % torque)
+            self.exception_on_error(response[8], servo_id, 'setting torque limit to %d' % torque)
         return response
 
     def set_goal_current(self, servo_id, current):
@@ -606,13 +678,12 @@ class DynamixelIO(object):
         Only applies if in the Current-based position control mode.
         Valid range: 0 - val(MX_CURRENT_LIMIT)
         """
+        b0 = current & 0xff
+        b1 = (current >> 8) & 0xff
 
-        #TODO: fix current mode
-        loVal = int(torque % 256);
-        hiVal = int(torque >> 8);
-        response = self.write(servo_id, DXL_GOAL_TORQUE_L, (loVal, hiVal))
+        response = self.write(servo_id, MX_GOAL_CURRENT, (b0,b1))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting goal torque to %d' % torque)
+            self.exception_on_error(response[8], servo_id, 'setting goal current to %d' % torque)
         return response
 
 
@@ -624,12 +695,12 @@ class DynamixelIO(object):
         (when in velocity control mode) or indirectly through velocity profile (in all other
         control modes)
         """
-        loPositionVal = ctypes.c_ubyte(position & 0xff).value
-        hiPositionVal = ctypes.c_ubyte(position >> 8).value
+        loPositionVal = (position & 0xff)
+        hiPositionVal = (position >> 8) & 0xff
 
         response = self.write(servo_id, MX_GOAL_POSITION, (loPositionVal, hiPositionVal, ))
         if response:
-            self.exception_on_error(response[4], servo_id, 'setting goal position to %d and moving speed to %d' %(position, speed))
+            self.exception_on_error(response[8], servo_id, 'setting goal position to %d and moving speed to %d' %(position, speed))
         return response
 
     def set_led(self, servo_id, led_state):
@@ -639,9 +710,9 @@ class DynamixelIO(object):
             True - turn the LED on,
             False - turn the LED off.
         """
-        response = self.write(servo_id, MX_LED, [led_state])
+        response = self.write(servo_id, MX_LED, (led_state,))
         if response:
-            self.exception_on_error(response[4], servo_id,
+            self.exception_on_error(response[8], servo_id,
                     'setting a LED to %s' % led_state)
         return response
 
@@ -658,15 +729,14 @@ class DynamixelIO(object):
         Should be called as such:
         set_multi_servos_to_torque_enabled( (id1, True), (id2, True), (id3, True) )
         """
-        self.sync_write(DXL_TORQUE_ENABLE, tuple(valueTuples))
+        self.sync_write(MX_TORQUE_ENABLE, tuple(valueTuples))
 
-    def set_compliance_d(self, valueTuple):
-        """
-        Sets the derivative value for MX series servos for a single id.
-        valueTuple should be a tuple of the form (idx, value) where value is [0,254] inclusive
-        """
-        self.sync_write(DXL_D_GAIN, tuple(valueTuple))
-
+    #TODO set_multi_pos_p(self, tup):
+    #TODO set_multi_pos_i(self, tup):
+        #self.sync_write(MX_POSITION_D_GAIN, tuple(valueTuple))
+    #TODO set_multi_pos_d(self, tup):
+    #TODO set_multi_vel_p(self, tup):
+    #TODO set_multi_vel_i(self, tup):
 
     def set_multi_position(self, valueTuples):
         """
@@ -680,10 +750,20 @@ class DynamixelIO(object):
         for vals in valueTuples:
             sid = vals[0]
             position = vals[1]
-            #TODO: ensure this 2s compliment conversion holds for non multi-turn motors
-            loVal = ctypes.c_ubyte(position & 0x00FF).value
-            hiVal =  ctypes.c_ubyte(position >> 8).value
-            writeableVals.append( (sid, loVal, hiVal) )
+
+            #gear ratio
+            if sid == 4 or sid == 5:
+                speed = speed * 4
+                position = position * 4
+            elif sid == 2 or sid == 3:
+                speed = speed * 6
+                position = position * 6
+
+            b0 = position & 0xff
+            b1 = (position >> 8) & 0xff
+            b2 = (position >> 16) & 0xff
+            b3 = (position >> 24) & 0xff
+            writeableVals.append( (sid, b0, b1) )
 
         # use sync write to broadcast multi servo message
         self.sync_write(MX_GOAL_POSITION, writeableVals)
@@ -704,18 +784,23 @@ class DynamixelIO(object):
             sid = vals[0]
             speed = vals[1]
 
-            # split speed into 2 bytes
-            if speed >= 0:
-                loVal = int(speed % 256)
-                hiVal = int(speed >> 8)
-            else:
-                loVal = int((1023 - speed) % 256)
-                hiVal = int((1023 - speed) >> 8)
+            #SVENZVA gear ratio
+            if sid == 4 or sid == 5:
+                speed = speed * 4
+                position = position * 4
+            elif sid == 2 or sid == 3:
+                speed = speed * 6
+                position = position * 6
 
-            writeableVals.append( (sid, loVal, hiVal) )
+
+            b0 = speed & 0xff
+            b1 = (speed >> 8) & 0xff
+            b2 = (speed >> 16) & 0xff
+            b3 = (speed >> 24) & 0xff
+            writeableVals.append( (sid, b0,b1,b2,b3) )
 
         # use sync write to broadcast multi servo message
-        self.sync_write(DXL_GOAL_SPEED_L, writeableVals)
+        self.sync_write(MX_GOAL_VELOCITY, writeableVals)
 
     def set_multi_position_and_speed(self, valueTuples):
         """
@@ -723,7 +808,8 @@ class DynamixelIO(object):
         Should be called as such:
         set_multi_position_and_speed( ( (id1, position1, speed1), (id2, position2, speed2), (id3, position3, speed3) ) )
         """
-
+        #TODO: make equivalent function?
+        #register values not contiguous so this doesn't save time
         rospy.logerr("Function not implemented.")
         return
         # prepare value tuples for call to syncwrite
@@ -743,17 +829,16 @@ class DynamixelIO(object):
                 speed = speed * 6
                 position = position * 6
 
-            # split speed into 2 bytes
-            if speed >= 0:
-                loSpeedVal = int(speed % 256)
-                hiSpeedVal = int(speed >> 8)
-            else:
-                loSpeedVal = int((1023 - speed) % 256)
-                hiSpeedVal = int((1023 - speed) >> 8)
+            p0 = position & 0xff
+            p1 = (position >> 8) & 0xff
+            p2 = (position >> 16) & 0xff
+            p3 = (position >> 24) & 0xff
 
-            # split position into 2 bytes
-            loPositionVal = ctypes.c_ubyte(position & 0xff).value
-            hiPositionVal = ctypes.c_ubyte(position >> 8).value
+            b0 = speed & 0xff
+            b1 = (speed >> 8) & 0xff
+            b2 = (speed >> 16) & 0xff
+            b3 = (speed >> 24) & 0xff
+
             writeableVals.append( (sid, loPositionVal, hiPositionVal, loSpeedVal, hiSpeedVal) )
 
         # use sync write to broadcast multi servo message
