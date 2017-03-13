@@ -1,4 +1,4 @@
-mx_dynamixel
+mx_dynamixel [![Build Status](https://travis-ci.org/SvenzvaRobotics/mx_dynamixel.svg?branch=master)](https://travis-ci.org/SvenzvaRobotics/mx_dynamixel)
 ===============
 
 ROS stack for interfacing with Robotis Dynamixel MX series protocol version 2.0.
