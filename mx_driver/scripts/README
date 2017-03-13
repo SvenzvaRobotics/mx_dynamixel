@@ -1,3 +1,5 @@
+NOTE: These scripts are UNTESTED for servos on Protocol 2.0
+
 This directory contains scripts that are useful when working with Dynamixel servos.
 
 Current Contents:

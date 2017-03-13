@@ -38,8 +38,8 @@ __copyright__ = 'Copyright (c) 2010-2011 Antons Rebguns'
 __credits__ = 'Cody Jorgensen, Cara Slutter'
 
 __license__ = 'BSD'
-__maintainer__ = 'Antons Rebguns'
-__email__ = 'anton@email.arizona.edu'
+__maintainer__ = 'Max Svetlik'
+__email__ = 'max@svenzva.com'
 
 
 import math
@@ -50,7 +50,7 @@ from threading import Thread
 from collections import defaultdict
 
 import roslib
-roslib.load_manifest('dynamixel_driver')
+roslib.load_manifest('mx_driver')
 
 import rospy
 import dynamixel_io
@@ -118,23 +118,23 @@ class SerialProxy():
         voltage = self.dxl_io.get_voltage(motor_id)
         voltages = self.dxl_io.get_voltage_limits(motor_id)
         rospy.set_param('dynamixel/%s/%d/model_number' %(self.port_namespace, motor_id), model_number)
-        rospy.set_param('dynamixel/%s/%d/model_name' %(self.port_namespace, motor_id), DXL_MODEL_TO_PARAMS[model_number]['name'])
+        rospy.set_param('dynamixel/%s/%d/model_name' %(self.port_namespace, motor_id), MX_MODEL_TO_PARAMS[model_number]['name'])
 
         rospy.set_param('dynamixel/%s/%d/min_angle' %(self.port_namespace, motor_id), angles['min'])
         rospy.set_param('dynamixel/%s/%d/max_angle' %(self.port_namespace, motor_id), angles['max'])
 
-        torque_per_volt = DXL_MODEL_TO_PARAMS[model_number]['torque_per_volt']
+        torque_per_volt = MX_MODEL_TO_PARAMS[model_number]['torque_per_volt']
         rospy.set_param('dynamixel/%s/%d/torque_per_volt' %(self.port_namespace, motor_id), torque_per_volt)
         rospy.set_param('dynamixel/%s/%d/max_torque' %(self.port_namespace, motor_id), torque_per_volt * voltage)
 
-        velocity_per_volt = DXL_MODEL_TO_PARAMS[model_number]['velocity_per_volt']
-        rpm_per_tick = DXL_MODEL_TO_PARAMS[model_number]['rpm_per_tick']
+        velocity_per_volt = MX_MODEL_TO_PARAMS[model_number]['velocity_per_volt']
+        rpm_per_tick = MX_MODEL_TO_PARAMS[model_number]['rpm_per_tick']
         rospy.set_param('dynamixel/%s/%d/velocity_per_volt' %(self.port_namespace, motor_id), velocity_per_volt)
         rospy.set_param('dynamixel/%s/%d/max_velocity' %(self.port_namespace, motor_id), velocity_per_volt * voltage)
         rospy.set_param('dynamixel/%s/%d/radians_second_per_encoder_tick' %(self.port_namespace, motor_id), rpm_per_tick * RPM_TO_RADSEC)
 
-        encoder_resolution = DXL_MODEL_TO_PARAMS[model_number]['encoder_resolution']
-        range_degrees = DXL_MODEL_TO_PARAMS[model_number]['range_degrees']
+        encoder_resolution = MX_MODEL_TO_PARAMS[model_number]['encoder_resolution']
+        range_degrees = MX_MODEL_TO_PARAMS[model_number]['range_degrees']
         range_radians = math.radians(range_degrees)
         rospy.set_param('dynamixel/%s/%d/encoder_resolution' %(self.port_namespace, motor_id), encoder_resolution)
         rospy.set_param('dynamixel/%s/%d/range_degrees' %(self.port_namespace, motor_id), range_degrees)
@@ -147,7 +147,7 @@ class SerialProxy():
 
         # keep some parameters around for diagnostics
         self.motor_static_info[motor_id] = {}
-        self.motor_static_info[motor_id]['model'] = DXL_MODEL_TO_PARAMS[model_number]['name']
+        self.motor_static_info[motor_id]['model'] = MX_MODEL_TO_PARAMS[model_number]['name']
         self.motor_static_info[motor_id]['firmware'] = self.dxl_io.get_firmware_version(motor_id)
         self.motor_static_info[motor_id]['delay'] = self.dxl_io.get_return_delay_time(motor_id)
         self.motor_static_info[motor_id]['min_angle'] = angles['min']
@@ -170,7 +170,6 @@ class SerialProxy():
                 if result:
                     self.motors.append(motor_id)
                     break
-
         if not self.motors:
             rospy.logfatal('%s: No motors found.' % self.port_namespace)
             sys.exit(1)
@@ -199,7 +198,7 @@ class SerialProxy():
         status_str = '%s: Found %d motors - ' % (self.port_namespace, len(self.motors))
         for model_number,count in counts.items():
             if count:
-                model_name = DXL_MODEL_TO_PARAMS[model_number]['name']
+                model_name = MX_MODEL_TO_PARAMS[model_number]['name']
                 status_str += '%d %s [' % (count, model_name)
 
                 for motor_id in self.motors:
@@ -291,7 +290,7 @@ class SerialProxy():
                 status = DiagnosticStatus()
 
                 status.name = 'Robotis Dynamixel Motor %d on port %s' % (mid, self.port_namespace)
-                status.hardware_id = 'DXL-%d@%s' % (motor_state.id, self.port_namespace)
+                status.hardware_id = 'MX-%d@%s' % (motor_state.id, self.port_namespace)
                 status.values.append(KeyValue('Model Name', str(self.motor_static_info[mid]['model'])))
                 status.values.append(KeyValue('Firmware Version', str(self.motor_static_info[mid]['firmware'])))
                 status.values.append(KeyValue('Return Delay Time', str(self.motor_static_info[mid]['delay'])))

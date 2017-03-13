@@ -1,24 +1,22 @@
 <package>
   <name>mx_dynamixel</name>
-  <version>0.4.0</version>
+  <version>0.1.0</version>
   <description>
     This stack contains packages that are used to interface with Robotis
-    Dynamixel line of servo motors. This stack was tested with and fully
-    supports AX-12, AX-18, RX-24, RX-28, MX-28, RX-64, MX-64, EX-106 and
-    MX-106 models.
+    MX-Dynamixel servo motors using communication protocol 2.0. This
+    supports the MX-28, MX-64, MX-106 models. Other models are compatible 
+    with 2.0 communication have not been tested.
   </description>
-  <maintainer email="arebgun@gmail.com">Antons Rebguns</maintainer>
+  <maintainer email="max@svenzva.com">Max Svetlik</maintainer>
 
   <license>BSD</license>
 
-  <url type="website">http://ros.org/wiki/dynamixel_driver</url>
-  <url type="bugtracker">https://github.com/arebgun/dynamixel_motor</url>
+  <url type="bugtracker">https://github.com/svenzvarobotics/mx_motor</url>
 
-  <author>Antons Rebguns</author>
+  <author>Max Svetlik</author>
 
   <buildtool_depend>catkin</buildtool_depend>
 
-  <run_depend>dynamixel_tutorials</run_depend>
   <run_depend>mx_msgs</run_depend>
   <run_depend>mx_controllers</run_depend>
   <run_depend>mx_driver</run_depend>

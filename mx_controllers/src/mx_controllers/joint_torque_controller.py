@@ -2,6 +2,7 @@
 #
 # Software License Agreement (BSD License)
 #
+# Copyright (c) 2017 Svenzva Robotics
 # Copyright (c) 2010-2011, Antons Rebguns.
 # All rights reserved.
 #
@@ -35,20 +36,20 @@
 from __future__ import division
 
 
-__author__ = 'Antons Rebguns'
-__copyright__ = 'Copyright (c) 2010-2011 Antons Rebguns'
+__author__ = 'Max Svetlik'
+__copyright__ = 'Copyright (c) 2017 Svenzva Robotics, 2010-2011 Antons Rebguns'
 __credits__ = 'Cody Jorgensen'
 
 __license__ = 'BSD'
-__maintainer__ = 'Antons Rebguns'
-__email__ = 'anton@email.arizona.edu'
+__maintainer__ = 'Max Svetlik'
+__email__ = 'max@svenzva.com'
 
 
 import rospy
-from dynamixel_driver.dynamixel_const import *
-from dynamixel_controllers.joint_controller import JointController
+from mx_driver.dynamixel_const import *
+from mx_controllers.joint_controller import JointController
 
-from dynamixel_msgs.msg import JointState
+from mx_msgs.msg import JointState
 from std_msgs.msg import Float64
 
 class JointTorqueController(JointController):
@@ -91,9 +92,6 @@ class JointTorqueController(JointController):
         self.MAX_VELOCITY = rospy.get_param('dynamixel/%s/%d/max_velocity' % (self.port_namespace, self.motor_id))
         self.MIN_VELOCITY = self.VELOCITY_PER_TICK
 
-        if self.compliance_slope is not None: self.set_compliance_slope(self.compliance_slope)
-        if self.compliance_margin is not None: self.set_compliance_margin(self.compliance_margin)
-        if self.compliance_punch is not None: self.set_compliance_punch(self.compliance_punch)
         if self.torque_limit is not None: self.set_torque_limit(self.torque_limit)
 
         self.joint_max_speed = rospy.get_param(self.controller_namespace + '/joint_max_speed', self.MAX_VELOCITY)
@@ -118,55 +116,14 @@ class JointTorqueController(JointController):
         mcv = (self.motor_id, torque_enable)
         self.dxl_io.set_multi_torque_enabled([mcv])
 
-    def set_speed(self, speed):
-        mcv = (self.motor_id, self.spd_rad_to_raw(speed))
-        self.dxl_io.set_multi_speed([mcv])
-
-    def set_compliance_slope(self, slope):
-        if slope < DXL_MIN_COMPLIANCE_SLOPE: slope = DXL_MIN_COMPLIANCE_SLOPE
-        elif slope > DXL_MAX_COMPLIANCE_SLOPE: slope = DXL_MAX_COMPLIANCE_SLOPE
-        mcv = (self.motor_id, slope, slope)
-        self.dxl_io.set_multi_compliance_slopes([mcv])
-
-    def set_gain_p(self, margin):
-        if margin < 0: margin = 0
-        elif margin > 254: margin = 254
-        else: margin = int(margin)
-        mcv = (self.motor_id, margin)
-        self.dxl_io.set_compliance_p([mcv])
-
-    def set_gain_i(self, margin):
-        if margin < 0: margin = 0
-        elif margin > 254: margin = 254
-        else: margin = int(margin)
-        mcv = (self.motor_id, margin)
-        self.dxl_io.set_compliance_i([mcv])
-
-    def set_gain_d(self, margin):
-        if margin < 0: margin = 0
-        elif margin > 254: margin = 254
-        else: margin = int(margin)
-        mcv = (self.motor_id, margin)
-        self.dxl_io.set_compliance_d([mcv])
-
-    def set_compliance_margin(self, margin):
-        if margin < DXL_MIN_COMPLIANCE_MARGIN: margin = DXL_MIN_COMPLIANCE_MARGIN
-        elif margin > DXL_MAX_COMPLIANCE_MARGIN: margin = DXL_MAX_COMPLIANCE_MARGIN
-        else: margin = int(margin)
-        mcv = (self.motor_id, margin, margin)
-        self.dxl_io.set_multi_compliance_margins([mcv])
-
-    def set_compliance_punch(self, punch):
-        if punch < DXL_MIN_PUNCH: punch = DXL_MIN_PUNCH
-        elif punch > DXL_MAX_PUNCH: punch = DXL_MAX_PUNCH
-        else: punch = int(punch)
-        mcv = (self.motor_id, punch)
-        self.dxl_io.set_multi_punch([mcv])
+    def set_torque(self, current):
+        mcv = (self.motor_id, current)
+        self.dxl_io.set_torque_goal([mcv])
 
     def set_torque_limit(self, max_torque):
         if max_torque > 1: max_torque = 1.0         # use all torque motor can provide
         elif max_torque < 0: max_torque = 0.0       # turn off motor torque
-        raw_torque_val = int(DXL_MAX_TORQUE_TICK * max_torque)
+        raw_torque_val = int(MX_MAX_TORQUE_TICK * max_torque)
         mcv = (self.motor_id, raw_torque_val)
         self.dxl_io.set_multi_torque_limit([mcv])
 
@@ -187,5 +144,5 @@ class JointTorqueController(JointController):
                 self.joint_state_pub.publish(self.joint_state)
 
     def process_command(self, msg):
-        self.set_speed(msg.data)
+        self.set_torque(msg.data)
 
