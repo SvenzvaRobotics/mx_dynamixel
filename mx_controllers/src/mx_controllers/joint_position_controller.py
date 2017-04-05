@@ -56,6 +56,7 @@ class JointPositionController(JointController):
         JointController.__init__(self, dxl_io, controller_namespace, port_namespace)
 
         self.motor_id = rospy.get_param(self.controller_namespace + '/motor/id')
+        self.gear_ratio = rospy.get_param(self.controller_namespace + '/gear_ratio')
         self.initial_position_raw = rospy.get_param(self.controller_namespace + '/motor/init')
         self.min_angle_raw = rospy.get_param(self.controller_namespace + '/motor/min')
         self.max_angle_raw = rospy.get_param(self.controller_namespace + '/motor/max')
@@ -66,7 +67,13 @@ class JointPositionController(JointController):
 
         self.flipped = self.min_angle_raw > self.max_angle_raw
 
-        #self.dxl_io.set_multiturn_offset(self.motor_id, 0)
+
+        self.set_torque_enable(1)
+
+        self.dxl_io.set_acceleration_profile(self.motor_id, 20)
+        self.dxl_io.set_velocity_profile(self.motor_id, 200)
+
+
         self.joint_state = JointState(name=self.joint_name, motor_ids=[self.motor_id])
 
     def initialize(self):
@@ -124,7 +131,7 @@ class JointPositionController(JointController):
 
     def set_torque_enable(self, torque_enable):
         mcv = (self.motor_id, torque_enable)
-        self.dxl_io.set_multi_torque_enabled([mcv])
+        self.dxl_io.set_torque_enabled(self.motor_id, torque_enable)
 
     def set_speed(self, speed):
         divisor = 1
@@ -148,7 +155,7 @@ class JointPositionController(JointController):
             state = filter(lambda state: state.id == self.motor_id, state_list.motor_states)
             if state:
                 state = state[0]
-                divisor = 1
+                divisor = self.gear_ratio
 
                 self.joint_state.motor_temps = [state.temperature]
                 self.joint_state.goal_pos = self.raw_to_rad(state.goal, self.initial_position_raw, self.flipped, self.RADIANS_PER_ENCODER_TICK)
@@ -162,8 +169,7 @@ class JointPositionController(JointController):
                 self.joint_state_pub.publish(self.joint_state)
 
     def process_command(self, msg):
-        divisor = 1
+        divisor = self.gear_ratio
         angle = msg.data * divisor
-        mcv = (self.motor_id, self.pos_rad_to_raw(angle))
-        self.dxl_io.set_multi_position([mcv])
+        self.dxl_io.set_position(self.motor_id, self.pos_rad_to_raw(angle))
 

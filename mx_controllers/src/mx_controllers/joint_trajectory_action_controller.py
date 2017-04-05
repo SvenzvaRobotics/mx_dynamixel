@@ -70,6 +70,7 @@ class JointTrajectoryActionController():
 
         self.controller_namespace = controller_namespace
         self.joint_names = [c.joint_name for c in controllers]
+        self.gear_ratios = [c.gear_ratio for c in controllers]
 
         self.joint_to_controller = {}
         for c in controllers:
@@ -270,8 +271,8 @@ class JointTrajectoryActionController():
                         vals.append((slave_id, slave_pos, spd))
                     else:
                         motor_id = self.joint_to_controller[joint].motor_id
-                        pos = self.joint_to_controller[joint].pos_rad_to_raw(desired_position)
-                        spd = self.joint_to_controller[joint].spd_rad_to_raw(desired_velocity)
+                        pos = self.joint_to_controller[joint].pos_rad_to_raw(desired_position * self.gear_ratios[j])
+                        spd = self.joint_to_controller[joint].spd_rad_to_raw(desired_velocity * self.gear_ratios[j])
                         vals.append((motor_id, pos, spd))
 
                 multi_packet[port] = vals

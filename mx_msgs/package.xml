@@ -4,14 +4,11 @@
   <description>
     Common messages used throughout dynamixel_motor stack.
   </description>
-  <maintainer email="arebgun@gmail.com">Antons Rebguns</maintainer>
+  <maintainer email="max@svenzva.com">Max Svetlik</maintainer>
 
   <license>BSD</license>
 
-  <url type="website">http://ros.org/wiki/dynamixel_driver</url>
-  <url type="bugtracker">https://github.com/arebgun/dynamixel_motor</url>
-
-  <author>Antons Rebguns</author>
+  <author>Max Svetlik, Antons Rebguns</author>
 
   <buildtool_depend>catkin</buildtool_depend>
 

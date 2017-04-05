@@ -126,7 +126,12 @@ MX_WRITE_DATA = 3
 MX_REG_WRITE = 4
 MX_ACTION = 5
 MX_RESET = 6
+MX_REBOOT = 8
+MX_STATUS = 85
+MX_SYNC_READ = 130
 MX_SYNC_WRITE = 131
+MX_BULK_READ = 146
+MX_BULK_WRITE = 147
 
 # Broadcast Constant
 MX_BROADCAST = 254
@@ -148,6 +153,7 @@ MX_CURRENT_UNITS = 3.36                     # units of current register in mA
 
 KGCM_TO_NM = 0.0980665                      # 1 kg-cm is that many N-m
 RPM_TO_RADSEC = 0.104719755                 # 1 RPM is that many rad/sec
+RPM_PER_TICK = 0.229
 
 MX_MODEL_TO_PARAMS = \
 {
@@ -157,7 +163,7 @@ MX_MODEL_TO_PARAMS = \
            'range_degrees':      360.0,
            'torque_per_volt':    6.0 / 12.0,                       #  6 NM @ 12V
            'velocity_per_volt':  (63 * RPM_TO_RADSEC) / 12.0,      #  63 RPM @ 12.0V
-           'rpm_per_tick':       0.114,
+           'rpm_per_tick':       0.229,
            'features':           []
          },
     321: { 'name':               'MX-106',
@@ -165,7 +171,7 @@ MX_MODEL_TO_PARAMS = \
            'range_degrees':      360.0,
            'torque_per_volt':    8.4 / 12.0,                       #  8.4 NM @ 12V
            'velocity_per_volt':  (45 * RPM_TO_RADSEC) / 12.0,      #  45 RPM @ 12.0V
-           'rpm_per_tick':       0.114,
+           'rpm_per_tick':       0.229,
            'features':           []
          },
 }

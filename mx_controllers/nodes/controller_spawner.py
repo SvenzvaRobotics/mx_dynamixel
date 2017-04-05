@@ -48,9 +48,9 @@ from optparse import OptionParser
 
 import rospy
 
-from dynamixel_controllers.srv import StartController
-from dynamixel_controllers.srv import StopController
-from dynamixel_controllers.srv import RestartController
+from mx_controllers.srv import StartController
+from mx_controllers.srv import StopController
+from mx_controllers.srv import RestartController
 
 
 parser = OptionParser()
@@ -67,7 +67,7 @@ def manage_controller(controller_name, port_namespace, controller_type, command,
     except Exception as e:
         rospy.logerr('[%s]: %s' % (controller_name, e))
         sys.exit(1)
-        
+
     if command.lower() == 'start':
         try:
             response = start(port_namespace, package_path, module_name, class_name, controller_name, deps)
@@ -96,7 +96,7 @@ def manage_controller(controller_name, port_namespace, controller_type, command,
 if __name__ == '__main__':
     try:
         rospy.init_node('controller_spawner', anonymous=True)
-        
+
         parser.add_option('-m', '--manager', metavar='MANAGER',
                           help='specified serial port is managed by MANAGER')
         parser.add_option('-p', '--port', metavar='PORT',
@@ -105,37 +105,37 @@ if __name__ == '__main__':
                           help='type of controller to be loaded (simple|meta) [default: %default]')
         parser.add_option('-c', '--command', metavar='COMMAND', default='start', choices=('start','stop','restart'),
                           help='command to perform on specified controllers: start, stop or restart [default: %default]')
-                          
+
         (options, args) = parser.parse_args(rospy.myargv()[1:])
-        
+
         if len(args) < 1:
             parser.error('specify at least one controller name')
-            
+
         manager_namespace = options.manager
         port_namespace = options.port
         controller_type = options.type
         command = options.command
         joint_controllers = args
-        
+
         if controller_type == 'meta': port_namespace = 'meta'
-        
+
         start_service_name = '%s/%s/start_controller' % (manager_namespace, port_namespace)
         stop_service_name = '%s/%s/stop_controller' % (manager_namespace, port_namespace)
         restart_service_name = '%s/%s/restart_controller' % (manager_namespace, port_namespace)
-        
+
         parent_namespace = 'global' if rospy.get_namespace() == '/' else rospy.get_namespace()
         rospy.loginfo('%s controller_spawner: waiting for controller_manager %s to startup in %s namespace...' % (port_namespace, manager_namespace, parent_namespace))
-        
+
         rospy.wait_for_service(start_service_name)
         rospy.wait_for_service(stop_service_name)
         rospy.wait_for_service(restart_service_name)
-        
+
         start_controller = rospy.ServiceProxy(start_service_name, StartController)
         stop_controller = rospy.ServiceProxy(stop_service_name, StopController)
         restart_controller = rospy.ServiceProxy(restart_service_name, RestartController)
-        
+
         rospy.loginfo('%s controller_spawner: All services are up, spawning controllers...' % port_namespace)
-        
+
         if controller_type == 'simple':
             for controller_name in joint_controllers:
                 manage_controller(controller_name, port_namespace, controller_type, command, [], start_controller, stop_controller, restart_controller)
