@@ -106,9 +106,6 @@ class DynamixelIO(object):
         except Exception, e:
             raise DroppedPacketError('Invalid response received from motor %d. %s' % (servo_id, e))
 
-        if data[8] is not 0:
-            print("Read packet had error code: %d" % data[8])
-
 
         # verify checksum: use full packet length; which is length + 5 (bytes for header and etc)
         checksum = self.update_crc(0, data, length + 5)
@@ -258,7 +255,8 @@ class DynamixelIO(object):
 
             for rx in status:
                 if rx[5] + rx[6] << 8 != rx_length:
-                    raise DroppedPacketError("Sync status read returned with non uniform packets.")
+                    rospy.logdebug("Status returned with non-uniform packet. Dropping.")
+                    #raise DroppedPacketError("Sync status read returned with non uniform packets.")
 
         return status
 
