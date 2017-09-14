@@ -5,7 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   mx_controllers
   roscpp
   rospy
-  std_msg
+  std_msgs
 )
 
 catkin_package()
