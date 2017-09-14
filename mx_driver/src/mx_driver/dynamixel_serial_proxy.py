@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
 # Software License Agreement (BSD License)
@@ -65,11 +66,11 @@ from mx_msgs.msg import MotorStateList
 
 class SerialProxy():
     def __init__(self,
-                 port_name='/dev/ttyUSB0',
+                 port_name='/dev/ttyACM0',
                  port_namespace='ttyUSB0',
-                 baud_rate='1000000',
+                 baud_rate='57600',
                  min_motor_id=1,
-                 max_motor_id=25,
+                 max_motor_id=2,
                  update_rate=5,
                  diagnostics_rate=1,
                  error_level_temp=75,
@@ -325,6 +326,7 @@ class SerialProxy():
 
 if __name__ == '__main__':
     try:
+        rospy.init_node('mx_serial_proxy')
         serial_proxy = SerialProxy()
         serial_proxy.connect()
         rospy.spin()

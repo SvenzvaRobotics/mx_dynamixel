@@ -1,0 +1,11 @@
+tilt_controller:
+    controller:
+        package: mx_controllers
+        module: joint_torque_controller
+        type: JointTorqueController
+    joint_name: tilt_joint
+    motor:
+        id: 1
+        init: 512
+        min: 0
+        max: 1023

@@ -702,7 +702,6 @@ class DynamixelIO(object):
         """
         b0 = current & 0xff
         b1 = (current >> 8) & 0xff
-
         response = self.write(servo_id, MX_GOAL_CURRENT, (b0,b1))
         if response:
             self.exception_on_error(response[8], servo_id, 'setting moving current (torque) to %d' % current)
