@@ -67,7 +67,7 @@ class DynamixelIO(object):
             self.baudrate = baudrate
             self.serial_mutex = Lock()
             self.ser = None
-            self.ser = serial.Serial(port, baudrate, timeout=0.015)
+            self.ser = serial.Serial(port, baudrate)
             self.port_name = port
             self.readback_echo = readback_echo
         except SerialOpenError:
@@ -515,6 +515,13 @@ class DynamixelIO(object):
             self.exception_on_error(response[8], servo_id, '%sabling torque' % 'en' if enabled else 'dis')
         return response
 
+    def sync_set_torque_enabled(self, tup):
+        """
+        Sets the value of the torque enabled register to 1 or 0.
+        Torque must be disabled to set any values in EEPROM memory area
+        """
+        self.sync_write(MX_TORQUE_ENABLE, tuple(tup))
+
     def set_operation_mode(self, servo_id, mode):
         """
         Sets the operating mode {Torque, position control, velocity, etc)
@@ -523,6 +530,12 @@ class DynamixelIO(object):
         if response:
             self.exception_on_error(response[8], servo_id, 'setting operating mode')
         return response
+
+    def sync_set_operation_mode(self, tup):
+        """
+        Sets the operating mode {Torque, position control, velocity, etc)
+        """
+        self.sync_write(MX_OPERATING_MODE, tuple(tup))
 
     def set_velocity_i_gain(self, servo_id, i_gain):
         """
