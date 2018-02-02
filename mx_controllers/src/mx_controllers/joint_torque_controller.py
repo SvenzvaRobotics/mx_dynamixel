@@ -102,7 +102,13 @@ class JointTorqueController(JointController):
         if self.joint_speed < self.MIN_VELOCITY: self.joint_speed = self.MIN_VELOCITY
         elif self.joint_speed > self.joint_max_speed: self.joint_speed = self.joint_max_speed
 
-        self.set_speed(0.0)
+
+        self.set_torque_enable(0);
+        #ensure motor is in torque control mode:
+        self.dxl_io.set_operation_mode(self.motor_id, 0)
+        #enable holding torque and allow motor to receive commands
+        self.set_torque_enable(1);
+
 
         return True
 
@@ -114,11 +120,15 @@ class JointTorqueController(JointController):
 
     def set_torque_enable(self, torque_enable):
         mcv = (self.motor_id, torque_enable)
-        self.dxl_io.set_multi_torque_enabled([mcv])
+        self.dxl_io.set_torque_enabled(self.motor_id, torque_enable)
 
+    """
+    Set torque expects current units where 1 unit == 3.36mA.
+    We do rounding here to ensure the output is not a float.
+    """
     def set_torque(self, current):
-        mcv = (self.motor_id, current)
-        self.dxl_io.set_torque_goal([mcv])
+        current = int(current)
+        self.dxl_io.set_torque_goal(self.motor_id, current)
 
     def set_torque_limit(self, max_torque):
         if max_torque > 1: max_torque = 1.0         # use all torque motor can provide

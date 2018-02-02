@@ -67,7 +67,7 @@ class DynamixelIO(object):
             self.baudrate = baudrate
             self.serial_mutex = Lock()
             self.ser = None
-            self.ser = serial.Serial(port, baudrate, timeout=0.015)
+            self.ser = serial.Serial(port, baudrate)
             self.port_name = port
             self.readback_echo = readback_echo
         except SerialOpenError:
@@ -106,6 +106,8 @@ class DynamixelIO(object):
         except Exception, e:
             raise DroppedPacketError('Invalid response received from motor %d. %s' % (servo_id, e))
 
+        if len(data) != length + 7:
+                raise DroppedPacketError('packet responded with error. dropping')
 
         # verify checksum: use full packet length; which is length + 5 (bytes for header and etc)
         checksum = self.update_crc(0, data, length + 5)
@@ -151,7 +153,7 @@ class DynamixelIO(object):
 
             # wait for response packet from the motor
             timestamp = time.time()
-            time.sleep(0.001)
+            #time.sleep(0.001)
 
             # read response
             data = self.__read_response(servo_id)
@@ -187,10 +189,6 @@ class DynamixelIO(object):
         packet.append(CRC_L)
         packet.append(CRC_H)
 
-        #debug
-        #print '[{}]'.format(', '.join(hex(x) for x in packet))
-        #return
-
         packetStr = array('B', packet).tostring() # packetStr = ''.join([chr(byte) for byte in packet])
 
         with self.serial_mutex:
@@ -198,7 +196,7 @@ class DynamixelIO(object):
 
             # wait for response packet from the motor
             timestamp = time.time()
-            time.sleep(0.005)
+            #time.sleep(0.005)
 
             # read response
             data = self.__read_response(servo_id)
@@ -240,8 +238,8 @@ class DynamixelIO(object):
             self.__write_serial(packetStr)
 
             # wait for response packet from the motor
-            timestamp = time.time()
-            time.sleep( float((length * 8.0 / int(self.baudrate) ) ))
+            #timestamp = time.time()
+            #time.sleep( float((length * 8.0 / int(self.baudrate) ) ))
 
             # read response
             status = []
@@ -297,12 +295,10 @@ class DynamixelIO(object):
         packet.append(CRC_L)
         packet.append(CRC_H)
 
-        #print packet
-
         packetStr = array('B', packet).tostring()
         with self.serial_mutex:
             self.__write_serial(packetStr)
-            time.sleep( float((length * 8.0 / int(self.baudrate) ) ))
+            #time.sleep( float((length * 2.0 / int(self.baudrate) ) ))
 
     """
     CRC checksum calculation taken from the specifications of Dynamixel 2.0 protocol from
@@ -351,7 +347,7 @@ class DynamixelIO(object):
 
             # wait for response packet from the motor
             timestamp = time.time()
-            time.sleep(0.00235)
+            #time.sleep(0.00235)
 
             try:
                 response = self.__read_response(servo_id)
@@ -519,6 +515,13 @@ class DynamixelIO(object):
             self.exception_on_error(response[8], servo_id, '%sabling torque' % 'en' if enabled else 'dis')
         return response
 
+    def sync_set_torque_enabled(self, tup):
+        """
+        Sets the value of the torque enabled register to 1 or 0.
+        Torque must be disabled to set any values in EEPROM memory area
+        """
+        self.sync_write(MX_TORQUE_ENABLE, tuple(tup))
+
     def set_operation_mode(self, servo_id, mode):
         """
         Sets the operating mode {Torque, position control, velocity, etc)
@@ -527,6 +530,12 @@ class DynamixelIO(object):
         if response:
             self.exception_on_error(response[8], servo_id, 'setting operating mode')
         return response
+
+    def sync_set_operation_mode(self, tup):
+        """
+        Sets the operating mode {Torque, position control, velocity, etc)
+        """
+        self.sync_write(MX_OPERATING_MODE, tuple(tup))
 
     def set_velocity_i_gain(self, servo_id, i_gain):
         """
@@ -702,7 +711,6 @@ class DynamixelIO(object):
         """
         b0 = current & 0xff
         b1 = (current >> 8) & 0xff
-
         response = self.write(servo_id, MX_GOAL_CURRENT, (b0,b1))
         if response:
             self.exception_on_error(response[8], servo_id, 'setting moving current (torque) to %d' % current)
@@ -1037,14 +1045,13 @@ class DynamixelIO(object):
                  })
         return all_states
 
-
-    def get_sync_feedback(self, servo_id_list):
+    def get_sync_feedback_in_one(self, servo_id_list):
         """
         Returns state from multiple servos synchronously
         """
-        #response_ar = self.sync_read(MX_GOAL_POSITION, 20, servo_id_list)
-        response_ar = self.sync_read(MX_GOAL_POSITION, 7, servo_id_list)
-        response2 = self.sync_read(MX_PRESENT_CURRENT, 10, servo_id_list)
+        response_ar = self.sync_read(MX_GOAL_POSITION, 20, servo_id_list)
+        #response_ar = self.sync_read(MX_GOAL_POSITION, 7, servo_id_list)
+        #response2 = self.sync_read(MX_PRESENT_CURRENT, 10, servo_id_list)
 
         all_states = []
         for index, response in enumerate(response_ar):
@@ -1053,7 +1060,45 @@ class DynamixelIO(object):
 
             goal = response[9] + (response[10] << 8) + (response[11] << 16) + (response[12] << 24)
             moving = response[15]
-            position = response2[index][15] + (response2[index][16] << 8) + (response2[index][17] << 16) + (response2[index][18] << 24)
+            position = response[25] + (response[26] << 8) + (response[27] << 16) + (response[28] << 24)
+            error = position - goal
+            speed = response[21] + ( response[22] << 8) + (response[23] << 16) + (response[24] << 24)
+            load_raw = ctypes.c_int16((response[19] + (response[20] << 8))).value
+            timestamp = response[-1]
+
+            all_states.append({ 'timestamp': timestamp,
+                 'id': servo_id_list[index],
+                 'temperature': 0,
+                 'goal': ctypes.c_int(goal).value,
+                 'position': ctypes.c_int(position).value,
+                 'error': ctypes.c_int(error).value,
+                 'speed': ctypes.c_int(speed).value,
+                 'load': load_raw,
+                 'moving': bool(moving) })
+        return all_states
+
+
+
+    def get_sync_feedback(self, servo_id_list):
+        """
+        Returns state from multiple servos synchronously
+        and through several read commands. Fetching smaller sections of motor RAM greatly enhances
+        packet transmission accuracy, but theoretically limits the throuput.
+
+        For faster throughput, see get_sync_feeback_in_one(..)
+        """
+        response_ar = self.sync_read(MX_GOAL_POSITION, 7, servo_id_list)
+        response2 = self.sync_read(MX_PRESENT_CURRENT, 6, servo_id_list)
+        response3 = self.sync_read(MX_PRESENT_POSITION, 4, servo_id_list)
+
+        all_states = []
+        for index, response in enumerate(response_ar):
+            if response:
+                self.exception_on_error(response[8], servo_id_list[index], 'fetching full servo status')
+
+            goal = response[9] + (response[10] << 8) + (response[11] << 16) + (response[12] << 24)
+            moving = response[15]
+            position = response3[index][9] + (response3[index][10] << 8) + (response3[index][11] << 16) + (response3[index][12] << 24)
             error = position - goal
             speed = response2[index][11] + ( response2[index][12] << 8) + (response2[index][13] << 16) + (response2[index][14] << 24)
             load_raw = ctypes.c_int16((response2[index][9] + (response2[index][10] << 8))).value
